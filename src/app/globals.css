@@ -1,0 +1,189 @@
+@import "tailwindcss";
+
+:root {
+  --cc-charcoal: #0b130e;
+  --cc-charcoal-soft: #121f17;
+  --cc-forest: #123824;
+  --cc-forest-mid: #1a4f33;
+  --cc-fresh: #2f8f5b;
+  --cc-fresh-soft: #43b578;
+  --cc-gold: #cfa84c;
+  --cc-gold-soft: #e6c97a;
+  --cc-ivory: #f7f4ec;
+  --cc-white: #ffffff;
+  --cc-muted: #b4c3b8;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--cc-charcoal);
+    color: var(--cc-ivory);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+    scrollbar-width: thin;
+    scrollbar-color: #cfa84c #0b130e;
+  }
+
+  /* Custom Clean Crate Gold & Emerald Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b130e;
+    border-left: 1px solid rgba(207, 168, 76, 0.14);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #2f8f5b 0%, #cfa84c 55%, #e6c97a 100%);
+    border-radius: 9999px;
+    border: 2px solid #0b130e;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #43b578 0%, #e6c97a 100%);
+  }
+
+  body {
+    overflow-x: clip;
+    background:
+      radial-gradient(1200px 600px at 10% 0%, rgba(20, 62, 39, 0.28), transparent 65%),
+      radial-gradient(900px 500px at 90% 15%, rgba(207, 168, 76, 0.08), transparent 60%),
+      var(--cc-charcoal);
+    color: var(--cc-ivory);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide scrollbars cleanly for horizontal mobile strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Bespoke Smoked Glassmorphism Surfaces */
+.cc-glass-dark {
+  background: linear-gradient(
+    145deg,
+    rgba(11, 21, 16, 0.82) 0%,
+    rgba(18, 56, 36, 0.64) 60%,
+    rgba(13, 25, 19, 0.78) 100%
+  );
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  border: 1px solid rgba(207, 168, 76, 0.32);
+  box-shadow:
+    0 26px 60px -18px rgba(3, 8, 5, 0.68),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(207, 168, 76, 0.14);
+}
+
+.cc-glass-tag {
+  background: linear-gradient(
+    135deg,
+    rgba(14, 34, 23, 0.78) 0%,
+    rgba(10, 19, 14, 0.88) 100%
+  );
+  backdrop-filter: blur(14px) saturate(155%);
+  -webkit-backdrop-filter: blur(14px) saturate(155%);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  box-shadow:
+    0 14px 32px -10px rgba(5, 11, 8, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+/* Elevated Dark Surface Card */
+.cc-card {
+  background: linear-gradient(165deg, rgba(20, 35, 27, 0.96) 0%, rgba(12, 22, 16, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px -20px rgba(0, 0, 0, 0.65);
+  transition: border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cc-card:hover {
+  border-color: rgba(207, 168, 76, 0.48);
+}
+
+/* Playful spring reveal for scrollytelling chapter beats */
+@keyframes cc-beat-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.cc-beat-enter {
+  animation: cc-beat-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Soft Horizontal Passing Light Beam (Passes across the site every 5s without dark backdrop-filter edge line) */
+@keyframes cc-light-sweep {
+  0% {
+    transform: translate3d(-90px, 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  75% {
+    transform: translate3d(calc(100vw + 90px), 0, 0) skewX(-12deg);
+    opacity: 1;
+  }
+  88%,
+  100% {
+    transform: translate3d(calc(100vw + 90px), 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+.cc-light-beam {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 64px;
+  pointer-events: none;
+  z-index: 45;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 248, 225, 0.08) 30%,
+    rgba(230, 201, 122, 0.22) 50%,
+    rgba(255, 248, 225, 0.08) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(6px);
+  will-change: transform, opacity;
+  animation: cc-light-sweep 5s cubic-bezier(0.35, 0, 0.25, 1) infinite;
+}
+
+/* Subtle natural paper grain so dark surfaces never feel flat plastic */
+.cc-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .cc-light-beam {
+    display: none;
+  }
+  .cc-beat-enter {
+    animation: none;
+  }
+}

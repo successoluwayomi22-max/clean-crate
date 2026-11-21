@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+data/
+.env
+.env.local
+.env.*.local
+public/images/raw/
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
