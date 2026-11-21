@@ -1,10 +1,30 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { hashPassword } from "@/lib/security";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+function resolveWritableDataDir(): string {
+  const localDir = path.join(process.cwd(), "data");
+  // On Vercel or read-only serverless filesystems, use os.tmpdir()
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY) {
+    return path.join(os.tmpdir(), "cleancrate-data");
+  }
+  try {
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    const testFile = path.join(localDir, ".write-test");
+    fs.writeFileSync(testFile, "ok");
+    fs.unlinkSync(testFile);
+    return localDir;
+  } catch {
+    return path.join(os.tmpdir(), "cleancrate-data");
+  }
+}
+
+const DATA_DIR = resolveWritableDataDir();
 const DB_PATH = path.join(DATA_DIR, "cleancrate.db");
 
 let dbInstance: DatabaseSync | null = null;
@@ -12,15 +32,21 @@ let initialized = false;
 
 export function getDb(): DatabaseSync {
   if (!dbInstance) {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      dbInstance = new DatabaseSync(DB_PATH);
+      dbInstance.exec(`
+        PRAGMA journal_mode = DELETE;
+        PRAGMA foreign_keys = ON;
+        PRAGMA busy_timeout = 5000;
+      `);
+    } catch {
+      // Ultimate fallback to in-memory SQLite if even /tmp is restricted or locked
+      dbInstance = new DatabaseSync(":memory:");
+      dbInstance.exec(`PRAGMA foreign_keys = ON;`);
     }
-    dbInstance = new DatabaseSync(DB_PATH);
-    dbInstance.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA foreign_keys = ON;
-      PRAGMA busy_timeout = 5000;
-    `);
   }
   if (!initialized) {
     initialized = true;
@@ -340,12 +366,16 @@ export function seedAdminIfMissing(db: DatabaseSync): void {
   ).run(email, "Clean Crate Operations", passwordHash, "owner");
 
   if (generatedLocally) {
-    const bootstrapPath = path.join(DATA_DIR, ".admin-bootstrap.txt");
-    fs.writeFileSync(
-      bootstrapPath,
-      `Clean Crate Local Admin Bootstrap\nEmail: ${email}\nPassword: ${password}\nChange or override via ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD before production deployment.\n`,
-      { mode: 0o600 }
-    );
+    try {
+      const bootstrapPath = path.join(DATA_DIR, ".admin-bootstrap.txt");
+      fs.writeFileSync(
+        bootstrapPath,
+        `Clean Crate Local Admin Bootstrap\nEmail: ${email}\nPassword: ${password}\nChange or override via ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD before production deployment.\n`,
+        { mode: 0o600 }
+      );
+    } catch {
+      // Ignore file write error on read-only or in-memory serverless environments
+    }
   }
 }
 
