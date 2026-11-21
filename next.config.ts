@@ -31,6 +31,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  devIndicators: false,
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals = [...(Array.isArray(config.externals) ? config.externals : []), "node:sqlite"];

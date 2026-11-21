@@ -176,6 +176,13 @@
   background-size: 24px 24px;
 }
 
+/* Permanently hide Next.js DevTools N indicator badge */
+nextjs-portal,
+[data-nextjs-toast],
+[data-nextjs-dialog-overlay] {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
