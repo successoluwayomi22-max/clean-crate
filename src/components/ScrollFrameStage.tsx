@@ -17,7 +17,7 @@ import { useCart } from "@/components/CartContext";
 import { WhatsAppSvg } from "@/components/Navbar";
 import { BRAND, buildWhatsAppUrl } from "@/lib/format";
 
-const TOTAL_FRAMES = 140;
+const TOTAL_FRAMES = 90;
 
 function frameUrl(idx: number): string {
   const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, idx));
@@ -33,10 +33,9 @@ function drawResponsiveVideoFrame(
   w: number,
   h: number
 ) {
-  const iw = img.naturalWidth || 1280;
-  const ih = img.naturalHeight || 720;
+  const iw = img.naturalWidth || 1024;
+  const ih = img.naturalHeight || 576;
 
-  // Always cover 100% of the canvas width & height with a 1% overscan margin so no black edge line ever shows
   const scale = Math.max(w / iw, h / ih) * 1.01;
   const dw = iw * scale;
   const dh = ih * scale;
@@ -59,60 +58,11 @@ export function ScrollFrameStage({
 
   const targetFrameRef = useRef(0);
   const currentFrameRef = useRef(0);
+  const lastDrawnFrameRef = useRef(-1);
+  const rafIdRef = useRef(0);
 
   const [activeFrame, setActiveFrame] = useState(0);
   const [justAddedId, setJustAddedId] = useState<number | null>(null);
-
-  // Priority progressive frame preloader (zero lag, instant first frame)
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadSingle = (idx: number) =>
-      new Promise<void>((resolve) => {
-        if (framesCache.current.has(idx)) {
-          resolve();
-          return;
-        }
-        const img = new Image();
-        img.onload = () => {
-          if (!cancelled) {
-            framesCache.current.set(idx, img);
-          }
-          resolve();
-        };
-        img.onerror = () => resolve();
-        img.src = frameUrl(idx);
-      });
-
-    async function preloadSequence() {
-      // Load frame 0 first so canvas paints immediately without waiting for batch
-      await loadSingle(0);
-      if (cancelled) return;
-
-      const keyframes: number[] = [];
-      for (let i = 4; i < TOTAL_FRAMES; i += 4) keyframes.push(i);
-      keyframes.push(TOTAL_FRAMES - 1);
-
-      await Promise.all(keyframes.map(loadSingle));
-      if (cancelled) return;
-
-      const remaining: number[] = [];
-      for (let i = 0; i < TOTAL_FRAMES; i++) {
-        if (!framesCache.current.has(i)) remaining.push(i);
-      }
-
-      for (let i = 0; i < remaining.length; i += 10) {
-        if (cancelled) return;
-        const batch = remaining.slice(i, i + 10);
-        await Promise.all(batch.map(loadSingle));
-      }
-    }
-
-    preloadSequence();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const findNearestCachedImage = useCallback((idx: number): HTMLImageElement | null => {
     const exact = framesCache.current.get(idx);
@@ -128,29 +78,36 @@ export function ScrollFrameStage({
     return null;
   }, []);
 
-  // Deliberate, slightly slower, silky-smooth 60fps scroll interpolation
-  useEffect(() => {
-    const updateScrollTarget = () => {
-      const el = containerRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const scrollable = Math.max(1, el.offsetHeight - window.innerHeight);
-      const progress = Math.max(0, Math.min(1, -rect.top / scrollable));
-      targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
-    };
+  const paintFrame = useCallback(
+    (frameIdx: number, force = false) => {
+      if (!force && frameIdx === lastDrawnFrameRef.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+      const w = Math.floor(canvas.clientWidth * dpr);
+      const h = Math.floor(canvas.clientHeight * dpr);
+      if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const img = findNearestCachedImage(frameIdx);
+      if (ctx && img) {
+        lastDrawnFrameRef.current = frameIdx;
+        drawResponsiveVideoFrame(ctx, img, canvas.width, canvas.height);
+      }
+    },
+    [findNearestCachedImage]
+  );
 
-    window.addEventListener("scroll", updateScrollTarget, { passive: true });
-    window.addEventListener("resize", updateScrollTarget, { passive: true });
-    updateScrollTarget();
+  const scheduleAnimation = useCallback(() => {
+    if (rafIdRef.current) return;
 
-    let rafId = 0;
-    let lastUiFrame = -1;
-
-    const tick = () => {
-      // Ultra-fast, immediate 60fps response (0.58) so the background video reacts instantly to scroll
+    const step = () => {
       const diff = targetFrameRef.current - currentFrameRef.current;
-      if (Math.abs(diff) > 0.002) {
-        currentFrameRef.current += diff * 0.58;
+      if (Math.abs(diff) > 0.05) {
+        // Fast, responsive 0.48 lerp that settles in a few frames
+        currentFrameRef.current += diff * 0.48;
       } else {
         currentFrameRef.current = targetFrameRef.current;
       }
@@ -160,42 +117,120 @@ export function ScrollFrameStage({
         Math.min(TOTAL_FRAMES - 1, Math.round(currentFrameRef.current))
       );
 
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        const w = Math.floor(canvas.clientWidth * dpr);
-        const h = Math.floor(canvas.clientHeight * dpr);
-        if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
-          canvas.width = w;
-          canvas.height = h;
-        }
-        const ctx = canvas.getContext("2d");
-        const img = findNearestCachedImage(frameIdx);
-        if (ctx && img) {
-          drawResponsiveVideoFrame(ctx, img, canvas.width, canvas.height);
-        }
-      }
+      paintFrame(frameIdx);
+      setActiveFrame((prev) => (prev !== frameIdx ? frameIdx : prev));
 
-      if (frameIdx !== lastUiFrame) {
-        lastUiFrame = frameIdx;
-        setActiveFrame(frameIdx);
+      if (Math.abs(targetFrameRef.current - currentFrameRef.current) > 0.05) {
+        rafIdRef.current = requestAnimationFrame(step);
+      } else {
+        rafIdRef.current = 0;
       }
-
-      rafId = requestAnimationFrame(tick);
     };
 
-    rafId = requestAnimationFrame(tick);
+    rafIdRef.current = requestAnimationFrame(step);
+  }, [paintFrame]);
+
+  // Fast multi-tier parallel preloader (~1.5 MB total for all 90 frames)
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSingle = (idx: number) =>
+      new Promise<void>((resolve) => {
+        if (framesCache.current.has(idx)) {
+          resolve();
+          return;
+        }
+        const img = new Image();
+        img.decoding = "async";
+        img.onload = () => {
+          if (!cancelled) {
+            framesCache.current.set(idx, img);
+            const active = Math.round(currentFrameRef.current);
+            if (idx === active || lastDrawnFrameRef.current === -1) {
+              paintFrame(active, true);
+            }
+          }
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = frameUrl(idx);
+      });
+
+    async function preloadSequence() {
+      // Tier 0: Immediate first frame
+      await loadSingle(0);
+      if (cancelled) return;
+
+      // Tier 1: Coarse keyframes across entire video (15 frames = ~250 KB, loads in <0.3s)
+      const tier1: number[] = [];
+      for (let i = 6; i < TOTAL_FRAMES; i += 6) tier1.push(i);
+      tier1.push(TOTAL_FRAMES - 1);
+      await Promise.all(tier1.map(loadSingle));
+      if (cancelled) return;
+
+      // Tier 2: Mid keyframes (every 2nd frame)
+      const tier2: number[] = [];
+      for (let i = 2; i < TOTAL_FRAMES; i += 2) {
+        if (!framesCache.current.has(i)) tier2.push(i);
+      }
+      for (let i = 0; i < tier2.length; i += 14) {
+        if (cancelled) return;
+        await Promise.all(tier2.slice(i, i + 14).map(loadSingle));
+      }
+
+      // Tier 3: All remaining odd frames
+      const tier3: number[] = [];
+      for (let i = 1; i < TOTAL_FRAMES; i++) {
+        if (!framesCache.current.has(i)) tier3.push(i);
+      }
+      for (let i = 0; i < tier3.length; i += 14) {
+        if (cancelled) return;
+        await Promise.all(tier3.slice(i, i + 14).map(loadSingle));
+      }
+    }
+
+    preloadSequence();
     return () => {
-      cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", updateScrollTarget);
-      window.removeEventListener("resize", updateScrollTarget);
+      cancelled = true;
     };
-  }, [findNearestCachedImage]);
+  }, [paintFrame]);
+
+  // Event-driven scroll & resize handler (zero idle CPU/GPU draw loop)
+  useEffect(() => {
+    const updateScrollTarget = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const scrollable = Math.max(1, el.offsetHeight - window.innerHeight);
+      const progress = Math.max(0, Math.min(1, -rect.top / scrollable));
+      targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
+      scheduleAnimation();
+    };
+
+    const handleResize = () => {
+      lastDrawnFrameRef.current = -1;
+      updateScrollTarget();
+      paintFrame(Math.round(currentFrameRef.current), true);
+    };
+
+    window.addEventListener("scroll", updateScrollTarget, { passive: true });
+    window.addEventListener("resize", handleResize, { passive: true });
+    updateScrollTarget();
+
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = 0;
+      }
+      window.removeEventListener("scroll", updateScrollTarget);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [paintFrame, scheduleAnimation]);
 
   const chapter = useMemo(() => {
-    if (activeFrame < 28) return 0;
-    if (activeFrame < 64) return 1;
-    if (activeFrame < 105) return 2;
+    if (activeFrame < 18) return 0;
+    if (activeFrame < 42) return 1;
+    if (activeFrame < 68) return 2;
     return 3;
   }, [activeFrame]);
 
@@ -209,7 +244,7 @@ export function ScrollFrameStage({
       id="story"
       ref={containerRef}
       aria-label="Clean Crate interactive preparation story"
-      className="relative h-[195vh] w-full bg-[#0b130e] sm:h-[215vh]"
+      className="relative h-[185vh] w-full bg-[#0b130e] sm:h-[200vh]"
     >
       <div ref={stageRef} className="sticky top-0 h-[100dvh] w-full overflow-hidden">
         {/* Instant first-frame fallback image so the background is visible at 0ms before canvas frames hydrate */}
@@ -230,10 +265,10 @@ export function ScrollFrameStage({
         {/* Subtle bottom-only cinema gradient keeping the video's top/middle crystal clear */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0b130e]/90 via-[#0b130e]/15 to-transparent"
+          className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-[#0b130e]/90 via-[#0b130e]/15 to-transparent"
         />
 
-        {/* Top-right simple skip-to-pantry button (no frame counter, no auto-play) */}
+        {/* Top-right simple skip-to-pantry button */}
         <div className="pointer-events-none absolute inset-x-4 top-22 z-20 flex justify-end sm:inset-x-8">
           <a
             href="#storefront"
@@ -243,7 +278,7 @@ export function ScrollFrameStage({
           </a>
         </div>
 
-        {/* Bottom Narrative Glassmorphism Cards (Clean, No Progress Bar / Chapter Stepper) */}
+        {/* Bottom Narrative Glassmorphism Cards */}
         <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 mx-auto max-w-7xl px-4 sm:bottom-8 sm:px-6 lg:px-8">
           <div className="pointer-events-auto max-w-2xl">
             {chapter === 0 && (

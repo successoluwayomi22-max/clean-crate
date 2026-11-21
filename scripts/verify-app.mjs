@@ -16,13 +16,13 @@ import {
 import { hashPassword, verifyPassword } from "../src/lib/security";
 
 function runChecks() {
-  console.log("1. Checking generated assets & 140 real video WebP frames...");
+  console.log("1. Checking generated assets & 90 real video WebP frames...");
   const manifestPath = path.join(process.cwd(), "public", "frames", "manifest.json");
   assert.ok(fs.existsSync(manifestPath), "Missing frames manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  assert.equal(manifest.totalFrames, 140, "Expected 140 extracted real video frames");
+  assert.equal(manifest.totalFrames, 90, "Expected 90 extracted real video frames");
   assert.ok(fs.existsSync(path.join(process.cwd(), "public", "frames", "v2_frame_0001.webp")));
-  assert.ok(fs.existsSync(path.join(process.cwd(), "public", "frames", "v2_frame_0140.webp")));
+  assert.ok(fs.existsSync(path.join(process.cwd(), "public", "frames", "v2_frame_0090.webp")));
   assert.ok(fs.existsSync(path.join(process.cwd(), "public", "images", "brand", "logo-seal.webp")));
   assert.ok(fs.existsSync(path.join(process.cwd(), "public", "images", "brand", "logo-emblem.webp")));
 

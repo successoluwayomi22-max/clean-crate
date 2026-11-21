@@ -17,7 +17,7 @@ const LOGO_CIRCLE_PATH =
 const LOGO_WIDE_PATH =
   "C:/Users/OWE PROJECT/.gemini/antigravity/brain/1b90b49b-3b40-437d-ac91-25a507233259/.user_uploaded/media_1795264434227_7127f083.jpg";
 
-const TARGET_FRAMES = 140;
+const TARGET_FRAMES = 90;
 
 const EDGE_CANDIDATES = [
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -89,7 +89,7 @@ async function run() {
     ctx.filter = "contrast(1.04) saturate(1.06) brightness(1.01)";
     ctx.drawImage(video, 0, 0, outW, outH);
     ctx.filter = "none";
-    return canvas.toDataURL("image/webp", 0.86);
+    return canvas.toDataURL("image/webp", 0.78);
   };
 
   window.processCircularLogo = async function() {
@@ -308,8 +308,8 @@ async function run() {
 
     console.log(`Video metadata: duration=${meta.duration.toFixed(2)}s, ${meta.width}x${meta.height}`);
 
-    // Preserve native aspect ratio up to 1280px max dimension
-    const scale = Math.min(1, 1280 / Math.max(meta.width, meta.height));
+    // Optimize dimensions to 1024px max width so 90 frames download over the internet in <1.5 MB total
+    const scale = Math.min(1, 1024 / Math.max(meta.width, meta.height));
     const outW = Math.round((meta.width * scale) / 2) * 2;
     const outH = Math.round((meta.height * scale) / 2) * 2;
 

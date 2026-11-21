@@ -94,6 +94,8 @@ export default function RootLayout({
             trailWidth={3}
             linger={1.4}
             glow={1.2}
+            quality="medium"
+            maxDevicePixelRatio={1.25}
             clickBurst
             scrollSpark
             theme="dark"
@@ -104,12 +106,13 @@ export default function RootLayout({
           className="pointer-events-none fixed inset-0 z-30 overflow-hidden"
         >
           <SwarmCursor
-            count={650}
+            count={320}
             size={2.5}
             color="#e6c97a"
             accentColor="#43b578"
             spread={90}
             swirl={0.6}
+            dpr={1.25}
             clickEffect="burst"
           />
         </div>
