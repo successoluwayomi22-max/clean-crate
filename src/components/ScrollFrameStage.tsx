@@ -21,7 +21,7 @@ const TOTAL_FRAMES = 140;
 
 function frameUrl(idx: number): string {
   const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, idx));
-  return `/frames/v2_frame_${String(clamped + 1).padStart(4, "0")}.webp?v=clean2`;
+  return `/frames/v2_frame_${String(clamped + 1).padStart(4, "0")}.webp`;
 }
 
 /**
@@ -63,7 +63,7 @@ export function ScrollFrameStage({
   const [activeFrame, setActiveFrame] = useState(0);
   const [justAddedId, setJustAddedId] = useState<number | null>(null);
 
-  // Priority progressive frame preloader (zero lag)
+  // Priority progressive frame preloader (zero lag, instant first frame)
   useEffect(() => {
     let cancelled = false;
 
@@ -74,9 +74,10 @@ export function ScrollFrameStage({
           return;
         }
         const img = new Image();
-        img.decoding = "async";
         img.onload = () => {
-          if (!cancelled) framesCache.current.set(idx, img);
+          if (!cancelled) {
+            framesCache.current.set(idx, img);
+          }
           resolve();
         };
         img.onerror = () => resolve();
@@ -84,8 +85,12 @@ export function ScrollFrameStage({
       });
 
     async function preloadSequence() {
-      const keyframes: number[] = [0];
-      for (let i = 6; i < TOTAL_FRAMES; i += 6) keyframes.push(i);
+      // Load frame 0 first so canvas paints immediately without waiting for batch
+      await loadSingle(0);
+      if (cancelled) return;
+
+      const keyframes: number[] = [];
+      for (let i = 4; i < TOTAL_FRAMES; i += 4) keyframes.push(i);
       keyframes.push(TOTAL_FRAMES - 1);
 
       await Promise.all(keyframes.map(loadSingle));
@@ -96,9 +101,9 @@ export function ScrollFrameStage({
         if (!framesCache.current.has(i)) remaining.push(i);
       }
 
-      for (let i = 0; i < remaining.length; i += 8) {
+      for (let i = 0; i < remaining.length; i += 10) {
         if (cancelled) return;
-        const batch = remaining.slice(i, i + 8);
+        const batch = remaining.slice(i, i + 10);
         await Promise.all(batch.map(loadSingle));
       }
     }
@@ -207,9 +212,18 @@ export function ScrollFrameStage({
       className="relative h-[195vh] w-full bg-[#0b130e] sm:h-[215vh]"
     >
       <div ref={stageRef} className="sticky top-0 h-[100dvh] w-full overflow-hidden">
+        {/* Instant first-frame fallback image so the background is visible at 0ms before canvas frames hydrate */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/frames/v2_frame_0001.webp"
+          alt=""
+          aria-hidden="true"
+          fetchPriority="high"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
         <canvas
           ref={canvasRef}
-          className="block h-full w-full object-cover"
+          className="relative z-[1] block h-full w-full object-cover"
           aria-hidden="true"
         />
 
